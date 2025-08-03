@@ -1,0 +1,30 @@
+# Interface de usuário
+streamlit>=1.30.0
+
+# Leitura de documentos Word
+python-docx>=1.1.0
+
+# Leitura de planilhas Excel
+openpyxl>=3.1.0
+xlrd>=2.0.1
+
+# Leitura de apresentações PowerPoint
+python-pptx>=0.6.23
+
+# Leitura de documentos PDF
+PyPDF2>=3.0.1
+pdfplumber>=0.10.0
+
+# Manipulação de dados e CSV
+pandas>=2.1.0
+
+# Logging e debugging
+loguru>=0.7.0
+
+# Para arquivos .doc legados (se necessário)
+docx2txt>=0.8
+
+# Para backup e operações de arquivo
+# shutil (built-in)
+# pathlib (built-in)
+# os (built-in)
