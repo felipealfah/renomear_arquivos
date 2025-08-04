@@ -41,6 +41,12 @@ try:
 except ImportError:
     PANDAS_AVAILABLE = False
 
+try:
+    import xlrd
+    XLRD_AVAILABLE = True
+except ImportError:
+    XLRD_AVAILABLE = False
+
 from .encoding_utils import normalize_text, safe_filename
 
 class FileReader:
@@ -139,9 +145,29 @@ class WordReader(FileReader):
             }
 
 class ExcelReader(FileReader):
-    """Leitor para arquivos Excel (.xlsx)"""
+    """Leitor para arquivos Excel (.xlsx e .xls)"""
     
     def _extract_content(self, file_path: str) -> Dict[str, Any]:
+        file_extension = Path(file_path).suffix.lower()
+        
+        # Tentar .xlsx primeiro com openpyxl
+        if file_extension == '.xlsx':
+            return self._read_xlsx(file_path)
+        
+        # Para .xls usar xlrd
+        elif file_extension == '.xls':
+            return self._read_xls(file_path)
+        
+        else:
+            return {
+                'title': '',
+                'content_preview': '',
+                'success': False,
+                'error': f'Extensão não suportada: {file_extension}'
+            }
+    
+    def _read_xlsx(self, file_path: str) -> Dict[str, Any]:
+        """Lê arquivos .xlsx com openpyxl"""
         if not OPENPYXL_AVAILABLE:
             return {
                 'title': '',
@@ -196,7 +222,79 @@ class ExcelReader(FileReader):
                 'title': '',
                 'content_preview': '',
                 'success': False,
-                'error': f"Erro ao ler Excel: {str(e)}"
+                'error': f"Erro ao ler .xlsx: {str(e)}"
+            }
+    
+    def _read_xls(self, file_path: str) -> Dict[str, Any]:
+        """Lê arquivos .xls legados com xlrd"""
+        if not XLRD_AVAILABLE:
+            return {
+                'title': '',
+                'content_preview': '',
+                'success': False,
+                'error': 'Biblioteca xlrd não disponível para arquivos .xls'
+            }
+        
+        try:
+            # Abrir workbook com xlrd
+            workbook = xlrd.open_workbook(file_path)
+            
+            # Usar nome da primeira planilha como título
+            sheet_names = workbook.sheet_names()
+            title = sheet_names[0] if sheet_names else "planilha"
+            
+            # Se o nome é genérico, tentar usar conteúdo da célula A1
+            if title.lower() in ['sheet1', 'planilha1', 'plan1', 'sheet']:
+                try:
+                    first_sheet = workbook.sheet_by_index(0)
+                    if first_sheet.nrows > 0 and first_sheet.ncols > 0:
+                        cell_a1 = first_sheet.cell_value(0, 0)  # row 0, col 0 = A1
+                        if cell_a1 and isinstance(cell_a1, str) and cell_a1.strip():
+                            title = str(cell_a1).strip()
+                except:
+                    pass
+            
+            # Coletar preview do conteúdo
+            content_parts = []
+            try:
+                sheet = workbook.sheet_by_index(0)
+                max_rows = min(5, sheet.nrows)
+                max_cols = min(3, sheet.ncols)
+                
+                for row in range(max_rows):
+                    row_data = []
+                    for col in range(max_cols):
+                        try:
+                            cell_value = sheet.cell_value(row, col)
+                            if cell_value is not None and str(cell_value).strip():
+                                # Converter diferentes tipos de célula
+                                if isinstance(cell_value, float) and cell_value.is_integer():
+                                    row_data.append(str(int(cell_value)))
+                                else:
+                                    row_data.append(str(cell_value))
+                        except:
+                            continue
+                    
+                    if row_data:
+                        content_parts.append(' | '.join(row_data))
+            except:
+                pass
+            
+            content_preview = '\n'.join(content_parts)[:self.max_content_chars]
+            
+            return {
+                'title': title,
+                'content_preview': content_preview,
+                'success': True,
+                'error': ''
+            }
+            
+        except Exception as e:
+            return {
+                'title': '',
+                'content_preview': '',
+                'success': False,
+                'error': f"Erro ao ler .xls: {str(e)}"
             }
 
 class PowerPointReader(FileReader):
